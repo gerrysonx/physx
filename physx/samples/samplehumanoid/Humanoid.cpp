@@ -45,9 +45,12 @@
 using namespace PxToolkit;
 // if enabled: runs the crab AI in sync, not as a parallel task to physx.
 #define DEBUG_RENDERING 0
+/*
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtx/quaternion.hpp>
+*/
+
 
 
 // table with default times in seconds how the crab AI will try to stay in a state
