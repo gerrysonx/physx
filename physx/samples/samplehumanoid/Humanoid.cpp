@@ -829,7 +829,7 @@ int Humanoid::loadMujoco()
 		std::cerr << "Error finding directory name." << std::endl;
 	}
 
-	std::string filename = "\\amp_humanoid_torso.xml"; // Replace 'example.txt' with your desired file name
+	std::string filename = "\\amp_humanoid_full.xml"; // Replace 'example.txt' with your desired file name
 	std::string fullFilePath = directory + filename;
 
 	MujocoXmlParser _parser;

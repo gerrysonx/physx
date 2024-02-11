@@ -218,7 +218,8 @@ PhysXSampleApplication::PhysXSampleApplication(const SampleCommandLine& cmdline)
 	MENU_PUSHV(eCOLLISION_DYNAMIC,		"Dynamic pruning structure"	);
 	MENU_PUSHV(eCOLLISION_COMPOUNDS,	"Compounds"					);
 	//
-    mSelected = getSampleTreeRoot().getFirstTest();
+    // mSelected = getSampleTreeRoot().getFirstTest();
+	mSelected = getSampleTreeRoot().getGroupFromPathName("SampleHumanoid", true);
 
     setPvdParams(cmdline);
 }
@@ -1067,7 +1068,8 @@ void PhysXSampleApplication::onInit()
 		mManagedMaterials[MATERIAL_FLAT]	= SAMPLE_NEW(RenderMaterial)(*renderer, PxVec3(0.5f, 0.5f, 0.5f),	opacity, doubleSided, id, NULL, true, true);
 	}
 
-	getNextSample();
+//	getNextSample();
+	getSampleByName("SampleHumanoid");
 	if (mSample)
 	{
 		mSample->onInit(false);
@@ -1453,6 +1455,21 @@ bool PhysXSampleApplication::addSample(Test::TestGroup &root, SampleCreator crea
 		return true;
 	} while (false);
 	return false;
+}
+
+bool PhysXSampleApplication::getSampleByName(const char* _sampleName)
+{
+	Test::TestGroup& root = PhysXSampleApplication::getSampleTreeRoot();
+
+	if (NULL == mSelected)
+		mSelected = root.getGroupFromPathName(_sampleName, true);
+
+	if (NULL == mSelected)
+		return false;
+
+	mRunning = mSelected;
+	mSample = (*mRunning->getCreator())(*this);
+	return true;
 }
 
 bool PhysXSampleApplication::getNextSample()

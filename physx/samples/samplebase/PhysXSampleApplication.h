@@ -312,6 +312,8 @@ class PhysXSampleApplication :	public SampleFramework::SampleApplication, public
 			return addSample(getSampleTreeRoot(), creator, fullPath);
 		}
 		bool getNextSample();
+		bool getSampleByName(const char* _sampleName);
+
 		void switchSample();
 	protected:
 		static Test::TestGroup*	mSampleTreeRoot;
