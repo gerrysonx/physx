@@ -543,7 +543,7 @@ void SampleHumanoid::onSubstep(float dtime)
 		gForce = PxVec3(0);
 		gTorque = PxVec3(0);
 	}
-
+#ifdef ASYNC_OP
 	if (!gPhysicsActivated)
 	{
 		// Get the second time point
@@ -563,7 +563,7 @@ void SampleHumanoid::onSubstep(float dtime)
 		}
 
 	}
-
+#endif
 
 }
 

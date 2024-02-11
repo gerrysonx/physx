@@ -527,6 +527,15 @@ int GetFilterData(PxRigidDynamic* _dynamic)
 	return _ret;
 }
 
+PxVec3 RotateLocalpos(PxVec3 _posLocal, PxVec3 _posParentGlobal, PxQuat _rotateGlobal)
+{
+	PxVec3 _posGlobal = _posLocal + _posParentGlobal;
+	PxVec3 _posGlobalNew = _rotateGlobal.rotate(_posGlobal);
+	PxVec3 _posParentGlobalNew = _rotateGlobal.rotate(_posParentGlobal);
+	PxVec3 _posLocalNew = _posGlobalNew - _posParentGlobalNew;
+	return _posLocalNew;
+}
+
 void Humanoid::ProcessMujoco(BodyParam* _bodyParam, PxRigidDynamic* _bodyParent)
 {
 	static float _minival = 1e-3;
@@ -545,6 +554,8 @@ void Humanoid::ProcessMujoco(BodyParam* _bodyParam, PxRigidDynamic* _bodyParent)
 			continue;
 		}
 
+		physx::PxVec3 _bodyGlobalPos = physx::PxVec3(pNow->posGlobal[0], pNow->posGlobal[1], pNow->posGlobal[2]);
+		physx::PxQuat _rErect = physx::PxQuat(physx::PxPi * -0.5f, physx::PxVec3(1, 0, 0)); // 90 degrees around Y axis
 		while (0 != _pGeom)
 		{
 			if (0 == strcmp(_pGeom->strType, "capsule"))
@@ -570,15 +581,21 @@ void Humanoid::ProcessMujoco(BodyParam* _bodyParam, PxRigidDynamic* _bodyParent)
 
 			PxTransform _geomPos;
 			PxQuat _qRotate;
+			PxVec3 _posLocalNew;
+
+			_posLocalNew = RotateLocalpos(PxVec3(_pGeom->fPos[0], _pGeom->fPos[1], _pGeom->fPos[2]), _bodyGlobalPos, _rErect);
 			if (fabs(_pGeom->qOrient[0]) > _minival)
 			{
-				_qRotate = PxQuat(PxPi * _pGeom->qOrient[0] / 180.0f, PxVec3(_pGeom->qOrient[1], _pGeom->qOrient[2], _pGeom->qOrient[3]));
-				_geomPos = PxTransform(PxVec3(_pGeom->fPos[0], _pGeom->fPos[1], _pGeom->fPos[2]),
-					_qRotate);
+			//	_qRotate = PxQuat(PxPi * 0.5f, PxVec3(0.0f, 0.0f, 1.0f));
+				PxVec3 _axisNew = _rErect.rotate(PxVec3(_pGeom->qOrient[1], _pGeom->qOrient[2], _pGeom->qOrient[3]));
+				_qRotate = PxQuat(PxPi * _pGeom->qOrient[0] / 180.0f, _axisNew);
+				
+				_geomPos = PxTransform(_posLocalNew, _qRotate);
+			//	_geomPos = PxTransform(_posLocalNew);
 			}
 			else
 			{
-				_geomPos = PxTransform(PxVec3(_pGeom->fPos[0], _pGeom->fPos[1], _pGeom->fPos[2]));
+				_geomPos = PxTransform(_posLocalNew);
 			}
 
 			_geomPoses.push_back(_geomPos);
@@ -588,8 +605,8 @@ void Humanoid::ProcessMujoco(BodyParam* _bodyParam, PxRigidDynamic* _bodyParent)
 			_pGeom = pNexGeom;
 		}
 
-		physx::PxVec3 _bodyGlobalPos = physx::PxVec3(pNow->posGlobal[0], pNow->posGlobal[1], pNow->posGlobal[2]);
-		physx::PxRigidDynamic* _bodyPart = mSampleHumanoid->createCompound(_bodyGlobalPos, _geomPoses, _geometries, NULL, mMaterial, 1.0f)->is<PxRigidDynamic>();
+		
+		physx::PxRigidDynamic* _bodyPart = mSampleHumanoid->createCompound(_rErect.rotate(_bodyGlobalPos), _geomPoses, _geometries, NULL, mMaterial, 1.0f)->is<PxRigidDynamic>();
 		if (!_bodyPart) mSampleHumanoid->fatalError("createCompound failed!");
 		mActors.push_back(_bodyPart);
 		for (const PxGeometry* element : _geometries) {
@@ -598,6 +615,7 @@ void Humanoid::ProcessMujoco(BodyParam* _bodyParam, PxRigidDynamic* _bodyParent)
 		_geometries.clear();
 		_geomPoses.clear();
 
+#ifdef USE_KINEMATIC_FLAG
 		// Assuming you have a pointer to a PxRigidActor or PxRigidDynamic named 'actor'
 		physx::PxQuat rotationQuat = physx::PxQuat(physx::PxPi * -0.5f, physx::PxVec3(1, 0, 0)); // 90 degrees around Y axis
 
@@ -609,7 +627,7 @@ void Humanoid::ProcessMujoco(BodyParam* _bodyParam, PxRigidDynamic* _bodyParent)
 		// Now set the kinematic target
 		PxVec3 rotatedRelativePos = rotationQuat.rotate(_bodyPart->getGlobalPose().p);
 		_bodyPart->setKinematicTarget(physx::PxTransform(rotatedRelativePos, rotationQuat));
-
+#endif
 
 		if (NULL == mHumanoidBody) {
 			mHumanoidBody = _bodyPart;
@@ -635,6 +653,7 @@ void Humanoid::ProcessMujoco(BodyParam* _bodyParam, PxRigidDynamic* _bodyParent)
 			}
 		}
 
+#ifndef ADD_JOINT
 		JointParam _swing1_param;
 		JointParam _swing2_param;
 		JointParam _twist_param;
@@ -708,17 +727,18 @@ void Humanoid::ProcessMujoco(BodyParam* _bodyParam, PxRigidDynamic* _bodyParent)
 		}
 
 		physx::PxVec3 _bodyLocalPos = physx::PxVec3(pNow->posLocal[0], pNow->posLocal[1], pNow->posLocal[2]);
+		physx::PxVec3 _bodyLocalPosNew = RotateLocalpos(_bodyLocalPos, _bodyGlobalPos - _bodyLocalPos, _rErect);
 		PxD6Joint* _joint = NULL;
 		// PxQuat(PxHalfPi, PxVec3(0, 0, 1))
 		_joint = PxD6JointCreate(mSampleHumanoid->getPhysics(),
 			_bodyParent,
-			PxTransform(_bodyLocalPos),
+			PxTransform(_bodyLocalPosNew),
 			_bodyPart,
 			PxTransform(PxVec3(0.0f, 0.0f, 0.0f)));
 
 		if (!_joint) mSampleHumanoid->fatalError("PxDistanceJointCreate failed!");
 		mJoints.push_back(_joint);
-#ifndef ADD_JOINT
+
 		_joint->setMotion(PxD6Axis::eSWING1, PxD6Motion::eLOCKED);
 		_joint->setMotion(PxD6Axis::eSWING2, PxD6Motion::eLOCKED);
 		if (p_swingLimit)
